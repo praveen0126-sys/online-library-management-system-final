@@ -164,9 +164,9 @@ jobs:
             image: mysql:8.0
             environment:
               MYSQL_DATABASE: library_db
-              MYSQL_USER: library_user
-              MYSQL_PASSWORD: \${{ secrets.DB_PASSWORD }}
-              MYSQL_ROOT_PASSWORD: \${{ secrets.DB_ROOT_PASSWORD }}
+              MYSQL_USER: ${{ secrets.DB_USERNAME }}
+              MYSQL_PASSWORD: ${{ secrets.DB_PASSWORD }}
+              MYSQL_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
             volumes:
               - mysql_data:/var/lib/mysql
             networks:
@@ -180,9 +180,9 @@ jobs:
             image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
             environment:
               - SPRING_PROFILES_ACTIVE=prod
-              - DB_URL=\${{ secrets.DB_URL }}
-              - DB_USERNAME=\${{ secrets.DB_USERNAME }}
-              - DB_PASSWORD=\${{ secrets.DB_PASSWORD }}
+              - DB_URL=${{ secrets.DB_URL }}
+              - DB_USERNAME=${{ secrets.DB_USERNAME }}
+              - DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             depends_on:
               mysql:
                 condition: service_healthy
