@@ -67,16 +67,27 @@ jobs:
         node-version: '18'
         cache: 'npm'
 
-    - name: Verify package.json location
+    - name: Debug directory structure
       run: |
         echo "Current directory: $(pwd)"
+        echo "Root directory contents:"
+        ls -la
+        echo ""
         echo "Frontend directory contents:"
         ls -la frontend/
-        echo "Package.json exists: $(test -f frontend/package.json && echo 'YES' || echo 'NO')"
+        echo ""
+        echo "Package.json location check:"
+        echo "Root package.json exists: $(test -f package.json && echo 'YES' || echo 'NO')"
+        echo "Frontend package.json exists: $(test -f frontend/package.json && echo 'YES' || echo 'NO')"
 
     - name: Install frontend dependencies
       run: |
+        echo "Changing to frontend directory..."
         cd frontend
+        echo "Current directory: $(pwd)"
+        echo "Checking for package.json..."
+        ls -la package.json
+        echo "Running npm install..."
         npm ci
 
     - name: Run linting
