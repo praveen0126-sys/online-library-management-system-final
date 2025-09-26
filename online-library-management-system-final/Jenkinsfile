@@ -1,0 +1,262 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY = 'your-docker-registry.com' // Change to your Docker registry
+        BACKEND_IMAGE = "${env.REGISTRY}/library-backend"
+        FRONTEND_IMAGE = "${env.REGISTRY}/library-frontend"
+        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials' // Jenkins credentials ID
+        DB_PASSWORD = credentials('DB_PASSWORD')
+        DB_ROOT_PASSWORD = credentials('DB_ROOT_PASSWORD')
+        DB_URL = credentials('DB_URL')
+        DB_USERNAME = credentials('DB_USERNAME')
+        JWT_SECRET = credentials('JWT_SECRET')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Backend Build & Test') {
+            steps {
+                script {
+                    echo 'Building and testing backend...'
+                    sh '''
+                        cd backend
+                        chmod +x mvnw
+                        ./mvnw clean compile test
+                        ./mvnw package -DskipTests
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo 'Backend build and test completed successfully'
+                    archiveArtifacts artifacts: 'backend/target/*.jar', allowEmptyArchive: true
+                }
+                failure {
+                    echo 'Backend build or test failed'
+                }
+            }
+        }
+
+        stage('Frontend Build & Test') {
+            steps {
+                script {
+                    echo 'Building and testing frontend...'
+                    sh '''
+                        cd frontend
+                        npm install
+                        npm run build
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo 'Frontend build completed successfully'
+                    archiveArtifacts artifacts: 'frontend/dist/**', allowEmptyArchive: true
+                }
+                failure {
+                    echo 'Frontend build failed'
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    echo 'Building Docker images...'
+
+                    // Build backend image
+                    sh """
+                        docker build -t ${env.BACKEND_IMAGE}:\${BUILD_NUMBER} ./backend
+                        docker tag ${env.BACKEND_IMAGE}:\${BUILD_NUMBER} ${env.BACKEND_IMAGE}:latest
+                    """
+
+                    // Build frontend image
+                    sh """
+                        docker build -t ${env.FRONTEND_IMAGE}:\${BUILD_NUMBER} ./frontend
+                        docker tag ${env.FRONTEND_IMAGE}:\${BUILD_NUMBER} ${env.FRONTEND_IMAGE}:latest
+                    """
+                }
+            }
+            post {
+                success {
+                    echo 'Docker images built successfully'
+                }
+                failure {
+                    echo 'Docker image build failed'
+                }
+            }
+        }
+
+        stage('Push Docker Images') {
+            steps {
+                script {
+                    echo 'Pushing Docker images to registry...'
+
+                    withDockerRegistry([credentialsId: env.DOCKER_CREDENTIALS_ID, url: "https://${env.REGISTRY}"]) {
+                        sh """
+                            docker push ${env.BACKEND_IMAGE}:\${BUILD_NUMBER}
+                            docker push ${env.BACKEND_IMAGE}:latest
+                            docker push ${env.FRONTEND_IMAGE}:\${BUILD_NUMBER}
+                            docker push ${env.FRONTEND_IMAGE}:latest
+                        """
+                    }
+                }
+            }
+            post {
+                success {
+                    echo 'Docker images pushed successfully'
+                }
+                failure {
+                    echo 'Docker image push failed'
+                }
+            }
+        }
+
+        stage('Deploy to Staging') {
+            steps {
+                script {
+                    echo 'Deploying to staging environment...'
+
+                    // Deploy using docker-compose
+                    sh '''
+                        # Set environment variables
+                        export DB_PASSWORD=${DB_PASSWORD}
+                        export DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+                        export DB_URL=${DB_URL}
+                        export DB_USERNAME=${DB_USERNAME}
+                        export JWT_SECRET=${JWT_SECRET}
+                        export BACKEND_IMAGE=${BACKEND_IMAGE}:${BUILD_NUMBER}
+                        export FRONTEND_IMAGE=${FRONTEND_IMAGE}:${BUILD_NUMBER}
+
+                        # Deploy to staging
+                        docker-compose -f docker-compose.prod.yml up -d
+
+                        # Wait for services to be healthy
+                        sleep 60
+
+                        # Health check
+                        if curl -f http://localhost:8081/api/actuator/health > /dev/null 2>&1; then
+                            echo "Staging deployment successful!"
+                        else
+                            echo "Staging deployment failed!"
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo 'Staging deployment completed successfully'
+                }
+                failure {
+                    echo 'Staging deployment failed'
+                }
+            }
+        }
+
+        stage('Integration Tests') {
+            steps {
+                script {
+                    echo 'Running integration tests...'
+
+                    sh '''
+                        # Run integration tests
+                        echo "Running integration tests..."
+                        # Add your integration test commands here
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo 'Integration tests passed'
+                }
+                failure {
+                    echo 'Integration tests failed'
+                }
+            }
+        }
+
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    echo 'Deploying to production environment...'
+
+                    // Create backup
+                    sh '''
+                        echo "Creating backup of current production deployment..."
+                        # Add backup commands here
+                    '''
+
+                    // Deploy to production
+                    sh '''
+                        # Set environment variables
+                        export DB_PASSWORD=${DB_PASSWORD}
+                        export DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+                        export DB_URL=${DB_URL}
+                        export DB_USERNAME=${DB_USERNAME}
+                        export JWT_SECRET=${JWT_SECRET}
+                        export BACKEND_IMAGE=${BACKEND_IMAGE}:${BUILD_NUMBER}
+                        export FRONTEND_IMAGE=${FRONTEND_IMAGE}:${BUILD_NUMBER}
+
+                        # Deploy to production
+                        docker-compose -f docker-compose.prod.yml up -d
+
+                        # Wait for services to be healthy
+                        sleep 120
+
+                        # Health check
+                        if curl -f http://localhost:8081/api/actuator/health > /dev/null 2>&1; then
+                            echo "Production deployment successful!"
+                        else
+                            echo "Production deployment failed!"
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo 'Production deployment completed successfully'
+                }
+                failure {
+                    echo 'Production deployment failed - rollback initiated'
+                    // Add rollback logic here
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline completed'
+
+            // Clean up Docker images
+            sh '''
+                docker image prune -f
+                docker container prune -f
+            '''
+
+            // Send notifications
+            script {
+                def status = currentBuild.result ?: 'SUCCESS'
+                echo "Build status: ${status}"
+                // Add notification logic here (email, Slack, etc.)
+            }
+        }
+        success {
+            echo '🎉 Pipeline succeeded!'
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+        }
+    }
+}

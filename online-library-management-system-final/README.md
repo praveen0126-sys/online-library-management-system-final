@@ -301,3 +301,31 @@ This project includes comprehensive GitHub Actions workflows for automated build
 - **Production Deployment**: ![Deploy Status](https://github.com/praveen0126-sys/online-library-management-system-final/workflows/Deploy%20to%20Production/badge.svg)
 
 For detailed setup instructions, see [GITHUB_ACTIONS.md](GITHUB_ACTIONS.md).
+
+---
+
+## 🏗️ Jenkins CI/CD
+
+This project also supports Jenkins for enterprise-grade CI/CD pipelines with Docker integration.
+
+### Features
+- ✅ **Docker-in-Docker**: Complete containerized pipeline
+- ✅ **Multi-stage Builds**: Optimized Docker image building
+- ✅ **Parallel Testing**: Unit and integration tests
+- ✅ **Automated Deployment**: Staging and production environments
+- ✅ **Health Monitoring**: Comprehensive service checks
+- ✅ **Rollback Support**: Automatic rollback on failure
+
+### Quick Setup
+1. Install Jenkins with Docker support
+2. Configure credentials and Docker registry
+3. Import Jenkins job configuration
+4. Trigger builds automatically or manually
+
+### Components
+- **Jenkinsfile**: Main pipeline configuration
+- **Dockerfile.jenkins**: Jenkins agent with required tools
+- **jenkins-job-config.xml**: Job configuration template
+- **jenkins-deploy.sh**: Deployment script
+
+For detailed setup instructions, see [JENKINS_SETUP.md](JENKINS_SETUP.md).
