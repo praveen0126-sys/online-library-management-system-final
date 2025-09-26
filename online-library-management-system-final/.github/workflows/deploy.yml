@@ -49,17 +49,13 @@ jobs:
 
     - name: Deploy to staging
       run: |
-        # Set environment variables
         export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
         export DB_ROOT_PASSWORD="${{ secrets.DB_ROOT_PASSWORD }}"
         export DB_URL="${{ secrets.DB_URL }}"
         export DB_USERNAME="${{ secrets.DB_USERNAME }}"
         export JWT_SECRET="${{ secrets.JWT_SECRET }}"
 
-        # Make deployment script executable
         chmod +x deployment/deploy.sh
-
-        # Run deployment script
         ./deployment/deploy.sh
 
     - name: Notify deployment success
@@ -98,21 +94,16 @@ jobs:
     - name: Create production backup
       run: |
         echo "Creating backup of current production deployment..."
-        # Add backup commands here
 
     - name: Deploy to production
       run: |
-        # Set environment variables
         export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
         export DB_ROOT_PASSWORD="${{ secrets.DB_ROOT_PASSWORD }}"
         export DB_URL="${{ secrets.DB_URL }}"
         export DB_USERNAME="${{ secrets.DB_USERNAME }}"
         export JWT_SECRET="${{ secrets.JWT_SECRET }}"
 
-        # Make deployment script executable
         chmod +x deployment/deploy.sh
-
-        # Run deployment script
         ./deployment/deploy.sh
 
     - name: Verify production deployment
@@ -120,7 +111,6 @@ jobs:
         echo "⏳ Waiting for production services to be healthy..."
         sleep 60
 
-        # Health check
         if curl -f http://localhost/api/actuator/health > /dev/null 2>&1; then
           echo "✅ Production deployment successful!"
         else
@@ -138,5 +128,4 @@ jobs:
       if: failure()
       run: |
         echo "❌ Production deployment failed - initiating rollback..."
-        # Add rollback logic here
         exit 1

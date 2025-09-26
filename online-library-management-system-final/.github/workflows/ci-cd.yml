@@ -12,7 +12,6 @@ env:
   FRONTEND_IMAGE: ${{ github.repository }}/frontend
 
 jobs:
-  # Backend Build and Test
   backend-test:
     runs-on: ubuntu-latest
     defaults:
@@ -55,7 +54,6 @@ jobs:
         name: backend-jar
         path: backend/target/*.jar
 
-  # Frontend Build and Test
   frontend-test:
     runs-on: ubuntu-latest
 
@@ -69,7 +67,7 @@ jobs:
         node-version: '18'
         cache: 'npm'
 
-    - name: Check package.json location
+    - name: Verify package.json location
       run: |
         echo "Current directory: $(pwd)"
         echo "Frontend directory contents:"
@@ -97,7 +95,6 @@ jobs:
         name: frontend-dist
         path: frontend/dist/
 
-  # Build and Push Docker Images
   build-and-push:
     needs: [backend-test, frontend-test]
     runs-on: ubuntu-latest
@@ -166,7 +163,7 @@ jobs:
     - name: Generate deployment artifacts
       run: |
         mkdir -p deployment
-        cat > deployment/docker-compose.yml << EOF
+        cat > deployment/docker-compose.yml << 'EOF'
         version: '3.8'
         services:
           mysql:
@@ -223,14 +220,12 @@ jobs:
             driver: bridge
         EOF
 
-        # Create deployment script
         cat > deployment/deploy.sh << 'EOF'
         #!/bin/bash
         set -e
 
         echo "🚀 Starting deployment..."
 
-        # Create environment file
         cat > .env << EOFF
         DB_PASSWORD=${DB_PASSWORD}
         DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
@@ -239,17 +234,12 @@ jobs:
         JWT_SECRET=${JWT_SECRET}
         EOFF
 
-        # Pull latest images
         docker-compose pull
-
-        # Deploy with new images
         docker-compose up -d
 
-        # Wait for services to be healthy
         echo "⏳ Waiting for services to be healthy..."
         sleep 30
 
-        # Check health
         if curl -f http://localhost/api/actuator/health > /dev/null 2>&1; then
           echo "✅ Deployment successful!"
         else
