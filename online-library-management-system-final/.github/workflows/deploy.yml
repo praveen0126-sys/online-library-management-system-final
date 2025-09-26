@@ -1,0 +1,121 @@
+name: Deploy to Production
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ${{ github.repository }}/backend
+  FRONTEND_IMAGE: ${{ github.repository }}/frontend
+
+jobs:
+  deploy-staging:
+    if: ${{ github.event.inputs.environment == 'staging' || github.event_name == 'workflow_run' }}
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download deployment artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: deployment-files
+        path: deployment/
+
+    - name: Deploy to staging server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.STAGING_HOST }}
+        username: ${{ secrets.STAGING_USER }}
+        key: ${{ secrets.STAGING_SSH_KEY }}
+        script: |
+          cd /opt/library-app
+          # Backup current deployment
+          cp docker-compose.yml docker-compose.yml.backup.$(date +%s)
+
+          # Update with new configuration
+          cp deployment/docker-compose.yml ./
+          cp deployment/deploy.sh ./
+
+          # Set environment variables
+          export DB_PASSWORD="${{ secrets.STAGING_DB_PASSWORD }}"
+          export DB_ROOT_PASSWORD="${{ secrets.STAGING_DB_ROOT_PASSWORD }}"
+          export DB_URL="${{ secrets.STAGING_DB_URL }}"
+          export DB_USERNAME="${{ secrets.STAGING_DB_USERNAME }}"
+          export JWT_SECRET="${{ secrets.STAGING_JWT_SECRET }}"
+
+          # Run deployment script
+          chmod +x deploy.sh
+          ./deploy.sh
+
+  deploy-production:
+    if: ${{ github.event.inputs.environment == 'production' }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download deployment artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: deployment-files
+        path: deployment/
+
+    - name: Deploy to production server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: ${{ secrets.PRODUCTION_USER }}
+        key: ${{ secrets.PRODUCTION_SSH_KEY }}
+        script: |
+          cd /opt/library-app
+
+          # Create backup
+          cp docker-compose.yml docker-compose.yml.backup.$(date +%s)
+
+          # Update configuration
+          cp deployment/docker-compose.yml ./
+          cp deployment/deploy.sh ./
+
+          # Set production environment variables
+          export DB_PASSWORD="${{ secrets.PRODUCTION_DB_PASSWORD }}"
+          export DB_ROOT_PASSWORD="${{ secrets.PRODUCTION_DB_ROOT_PASSWORD }}"
+          export DB_URL="${{ secrets.PRODUCTION_DB_URL }}"
+          export DB_USERNAME="${{ secrets.PRODUCTION_DB_USERNAME }}"
+          export JWT_SECRET="${{ secrets.PRODUCTION_JWT_SECRET }}"
+
+          # Run deployment script
+          chmod +x deploy.sh
+          ./deploy.sh
+
+  notify-deployment:
+    needs: [deploy-staging, deploy-production]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        fields: repo,message,commit,author,action,eventName,ref,workflow
+      if: always()
